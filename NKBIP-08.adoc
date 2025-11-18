@@ -2,13 +2,9 @@
 
 == Abstract
 
-This NKBIP defines a `book::` wikilink macro (based upon [[NIP-54]]) that references kind `30040` chapters and kind `30041` sections within a kind `30040` publication (assumed to usually be a book). Other hierarchically-structured events might also find this specification useful, for internal referencing.
+This NKBIP defines a `book::` wikilink macro (based upon [[NIP-54]]) that references kind `30040` chapters and kind `30041` sections within a kind `30040` publication (assumed to usually be a book). The format supports hierarchical structures and allows referencing any publication with collection, title, chapter, section, and version fields.
 
-This technique allows a book's content to be embedded and searched effectively, and simplifies the ability to view a book reference within a larger context within the book. For instance, you can use the link to reference a single paragraph, and then expand it, to view it highlighted within the chapter's text. Alternatively, you could view the chapter's text highlighted within the book's text.
-
-The structure is based upon a combination of Asciidoc `image::` links and Biblical citations, and can be used for any publication. It is meant to be used in Asciidoc documents, but it MAY be used in other formats.
-
-An example of the book wikilink is: `book::genesis 2:4-9`.
+Example: `book::genesis 2:4-9`
 
 == Specification
 
@@ -84,59 +80,24 @@ IMPORTANT: Tag values MUST contain only lowercase ASCII letters, numbers, and hy
 | "kjv"
 |===
 
-This table shows how each tag maps to a specific segment within the wikilink format. When parsing a wikilink, clients extract these segments and normalize them to create tag search criteria for finding corresponding Nostr events.
+Example tag structures:
 
 [source,json]
 ----
-[
-    ["C", "bible"],
-    ["T", "genesis"],
-    ["c", "2"],
-    ["s", "4"],
-    ["v", "drb"]
-]
+// Genesis 2:4 of the Douay-Rheims Bible
+[["C", "bible"], ["T", "genesis"], ["c", "2"], ["s", "4"], ["v", "drb"]]
+
+// Hamlet Act 2, Scene 2 (Oxford Classics)
+[["C", "shakespeare-complete"], ["T", "hamlet"], ["c", "2"], ["s", "2"], ["v", "oxford-classics"]]
+
+// Jane Eyre chapter 21, paragraph 8 (Penguin Classics)
+[["T", "jane-eyre"], ["c", "21"], ["s", "8"], ["v", "penguin-classics"]]
+
+// A Tale of Two Cities chapter 1, paragraph 4 (1st edition)
+[["T", "a-tale-of-two-cities"], ["c", "1"], ["s", "4"], ["v", "1st-edition"]]
 ----
 
-Genesis 2:4 of the Douay-Rheims Bible
-
-[source,json]
-----
-[
-    ["C", "shakespeare-complete"],
-    ["T", "hamlet"],
-    ["c", "2"],
-    ["s", "2"],
-    ["v", "oxford-classics"]
-]
-----
-
-Act 2, Scene 2 of the Oxford Classics edition of "Hamlet", contained in the compendium "Shakespeare's Complete Works"
-
-[source,json]
-----
-[
-    ["T", "jane-eyre"],
-    ["c", "21"],
-    ["s", "8"],
-    ["v", "penguin-classics"]
-]
-----
-
-Paragraph 8, from chapter 21 of "Jane Eyre", from Penguin Classics
-
-[source,json]
-----
-[
-    ["T", "a-tale-of-two-cities"],
-    ["c", "1"],
-    ["s", "4"],
-    ["v", "1st-edition"]
-]
-----
-
-Paragraph 4, from chapter 1 of "A Tale of Two Cities", from the original edition
-
-Only the 'T' tag MUST be present. The 'C', 'c', 's', and 'v' tags MAY be present, but are not required. All tags MAY be repeated, to support multiple macros, or macros with multiple options (such as allowing both the canonical longform "Song of Solomon" and the shortform "Song" to be used). 
+Only the 'T' tag MUST be present. The 'C', 'c', 's', and 'v' tags are optional. All tags MAY be repeated to support multiple aliases (e.g., "Song of Solomon" and "Song"). 
 
 When resolving links:
 
@@ -146,583 +107,149 @@ When resolving links:
 
 === Sections
 
-Most sections will tend to be numbered, as they are verses or paragraphs. Some sections have names such as "Preface", "Introduction", "Conclusion", "Table of Contents", "Appendix A", "Appendix B", etc.
+Sections may be numbered (verses, paragraphs) or named (e.g., "Preface", "Introduction", "Conclusion", "Appendix A").
 
-IMPORTANT: Section ranges (e.g., `2:4-9`) are allowed in the wikilink format for human readability. However, when searching for Nostr events, clients MUST expand ranges to individual section identifiers. Each section identifier becomes a separate `s` tag in the search criteria.
+IMPORTANT: Section ranges (e.g., `2:4-9`) are allowed in wikilinks but MUST be expanded to individual `s` tags for searching: `["s", "4"], ["s", "5"], ... ["s", "9"]`.
 
-IMPORTANT: Section identifiers cannot contain colons in tag values. When parsing hierarchical section paths that contain colons (e.g., `part-3:section-2:1846-1849`), clients MUST normalize colons to hyphens. The parsing process is:
-1. Parse the wikilink to extract chapter and section parts (the section part is everything after the first colon following the chapter).
-2. If the section part contains additional colons (indicating a hierarchical path), the section part must be processed as follows:
-   a. Extract any hierarchical prefix before a range (e.g., in `section-2:1846-1849`, the prefix is `section-2`).
-   b. Extract the range portion (e.g., `1846-1849`).
-   c. Expand the range to individual identifiers (e.g., `1846`, `1847`, `1848`, `1849`).
-   d. Combine the normalized prefix (colons → hyphens) with each expanded identifier (e.g., `section-2-1846`, `section-2-1847`, `section-2-1848`, `section-2-1849`).
-3. If the section part contains no range but has hierarchical colons, normalize all colons to hyphens to create a single section identifier (e.g., `section-2:article-3:422` → `section-2-article-3-422`).
+IMPORTANT: Section identifiers cannot contain colons in tag values. Hierarchical paths with colons (e.g., `part-3:section-2:1846-1849`) MUST be normalized: extract the section part (everything after the first colon following the chapter), normalize colons to hyphens, expand ranges, and combine. Example: `section-2:1846-1849` → `["s", "section-2-1846"], ["s", "section-2-1847"], ...`.
 
-For example, `book::title 2:4-9` should be parsed and expanded to search for events with `s` tags matching "4", "5", "6", "7", "8", and "9". The range notation is a convenience for users; the actual search always uses individual section identifiers.
-
-For example, `book::title part-3:section-2:1846-1849` should be parsed as chapter "part-3" and section path "section-2:1846-1849". The hierarchical prefix "section-2" is normalized (colon → hyphen), the range "1846-1849" is expanded, and they are combined, resulting in `s` tags: "section-2-1846", "section-2-1847", "section-2-1848", "section-2-1849".
-
-Publishers MAY store sections as individual events (one event per section) OR as range events (one event covering multiple sections). Clients search for individual section tags regardless of how publishers choose to structure their events, and deduplicate the results.
+Publishers MAY store sections as individual events or range events. Clients search for individual section tags and deduplicate results.
 
 === Examples
 
-==== Entire Book
+.Example Wikilinks
+[cols="2,3"]
+|===
+|Wikilink |Search Tags
 
-[source,asciidoc]
-----
-[[book::wuthering-heights]]
-----
+|`book::wuthering-heights`
+|`[["T", "wuthering-heights"]]`
 
-This example is the minimum allowed. It would return the "Wuthering Heights" book, in its entirety.
+|`book::bible \| genesis \| drb`
+|`[["C", "bible"], ["T", "genesis"], ["v", "drb"]]`
 
-The client would search for the 30040 event with the title "T" tag with value "wuthering-heights" (normalized)
+|`book::genesis 2`
+|`[["T", "genesis"], ["c", "2"]]`
 
-==== Entire Book, Version Included
+|`book::bible \| genesis 2:4 \| kjv`
+|`[["C", "bible"], ["T", "genesis"], ["c", "2"], ["s", "4"], ["v", "kjv"]]`
 
-[source,asciidoc]
-----
-[[book::bible | genesis | drb]]
-----
+|`book::jane-eyre 21:8 \| penguin-classics`
+|`[["T", "jane-eyre"], ["c", "21"], ["s", "8"], ["v", "penguin-classics"]]`
 
-This example would return the entire book of Genesis, of the Douay-Rheims Bible.
+|`book::quran \| al-baqarah 2:286`
+|`[["C", "quran"], ["T", "al-baqarah"], ["c", "2"], ["s", "286"]]`
 
-The client would search for the 30040 event with the collection "C" tag with value "bible" (normalized), the book "T" tag with value "genesis" (normalized), and the "v" tag with value "drb" (normalized), and return it and all of its children (branches and leaves), which are the (possibly nested) chapters and sections of the book.
+|`book::bible \| genesis 2:4-9`
+|`[["C", "bible"], ["T", "genesis"], ["c", "2"], ["s", "4"], ["s", "5"], ["s", "6"], ["s", "7"], ["s", "8"], ["s", "9"]]`
 
-==== Entire Chapter, Version and Collection Omitted
+|`book::bible \| gen 2:4-9,11-20,22-25`
+|`[["C", "bible"], ["T", "gen"], ["c", "2"], ["s", "4"], ... ["s", "25"]]`
 
-[source,asciidoc]
-----
-[[book::genesis 2]]
-----
+|`book::bible \| gen 2:4-9,4:11-20,4:22-25`
+|Multiple chapter-section combinations
 
-This example would return the entire chapter 2 of Genesis.
+|`book::bible \| gen 2:4-9, romans 1:1-10 \| kjv`
+|Multiple books, one version
 
-The client would search for the 30040 event with the book "T" tag with value "genesis" (normalized), and the chapter "c" tag with value "2" (normalized), and return it and all of its children (branches and leaves), which are the (possibly nested) subchapters and sections of the chapter.
-
-==== Particular Section
-
-[source,asciidoc]
-----
-[[book::bible | genesis 2:4 | kjv]]
-----
-
-This example would return the section "Genesis 2:4", of the King James Version of the Bible.
-
-The client would search for the 30041 event with the collection "C" tag with value "bible" (normalized), the book "T" tag with value "genesis" (normalized), the "c" tag with value "2" (normalized), the "s" tag with value "4" (normalized), and the "v" tag with value "kjv" (normalized).
-
-[source,asciidoc]
-----
-[[book::jane-eyre 21:8 | penguin-classics]]
-----
-
-This example would return paragraph 8 of chapter 21 of "Jane Eyre", from the Penguin Classics edition.
-
-The client would search for the 30041 event with the book "T" tag with value "jane-eyre" (normalized), the "c" tag with value "21" (normalized), the "s" tag with value "8" (normalized), and the "v" tag with value "penguin-classics" (normalized).
-
-[source,asciidoc]
-----
-[[book::a-tale-of-two-cities 1:4 | 1st-edition]]
-----
-
-This example would return paragraph 4 of chapter 1 of "A Tale of Two Cities", from the first edition.
-
-The client would search for the 30041 event with the book "T" tag with value "a-tale-of-two-cities" (normalized), the "c" tag with value "1" (normalized), the "s" tag with value "4" (normalized), and the "v" tag with value "1st-edition" (normalized).
-
-[source,asciidoc]
-----
-[[book::quran | al-baqarah 2:286]]
-----
-
-This example would return verse 286 of chapter 2 (Surah Al-Baqarah) of the Quran.
-
-The client would search for the 30041 event with the collection "C" tag with value "quran" (normalized), the book "T" tag with value "al-baqarah" (normalized), the "c" tag with value "2" (normalized), and the "s" tag with value "286" (normalized). Since no version is specified, the client MAY return results from any translation or use version selection logic.
-
-[source,asciidoc]
-----
-[[book::baltimore-catechism 1:50 | no-2]]
-----
-
-This example would return question 50 of lesson 1 of the Baltimore Catechism, from Number 2 (typically used for grades 6-9).
-
-The client would search for the 30041 event with the book "T" tag with value "baltimore-catechism" (normalized), the "c" tag with value "1" (normalized), the "s" tag with value "50" (normalized), and the "v" tag with value "no-2" (normalized).
-
-==== Section Range
-
-[source,asciidoc]
-----
-[[book::bible | genesis 2:4-9]]
-----
-
-This example would return the sections "Genesis 2:4" through "Genesis 2:9".
-
-The client would parse the range `2:4-9` and expand it to individual section identifiers: "4", "5", "6", "7", "8", and "9". The client would then search for 30041 events with the collection "C" tag with value "bible" (normalized), the book "T" tag with value "genesis" (normalized), the "c" tag with value "2" (normalized), and multiple "s" tags with values "4", "5", "6", "7", "8", and "9" (normalized). This would return the 30041 events for the sections "Genesis 2:4", "Genesis 2:5", "Genesis 2:6", "Genesis 2:7", "Genesis 2:8", and "Genesis 2:9".
-
-Since no version is specified, the client MAY return results from any version or use version selection logic as described in the Version Handling section.
-
-==== Multiple Sections, Same Book
-
-[source,asciidoc]
-----
-[[book::bible | gen 2:4-9,11-20,22-25]]
-----
-
-This example would return the sections "Genesis 2:4" through "Genesis 2:9", "Genesis 2:11" through "Genesis 2:20", and "Genesis 2:22" through "Genesis 2:25".
-
-==== Multiple Sections, Multiple Chapters, Same Book
-
-[source,asciidoc]
-----
-[[book::bible | gen 2:4-9,4:11-20,4:22-25]]
-----
-
-This example would return the sections "Genesis 2:4" through "Genesis 2:9", "Genesis 4:11" through "Genesis 4:20", and "Genesis 4:22" through "Genesis 4:25".
-
-==== Multiple Sections, Different Books
-
-[source,asciidoc]
-----
-[[book::bible | gen 2:4-9, romans 1:1-10 | kjv]]
-----
-
-This example would return:
-
-* the sections "Genesis 2:4" through "Genesis 2:9", of the King James Version of the Bible.
-* the sections "Romans 1:1" through "Romans 1:10", of the King James Version of the Bible.
-
-==== Multiple Sections, Same Book and Different Books
-
-[source,asciidoc]
-----
-[[book::bible | gen 2:4-9,11-20,22-25, romans 1:1-10]]
-----
-
-This example would return the sections "Genesis 2:4" through "Genesis 2:9", "Genesis 2:11" through "Genesis 2:20", "Genesis 2:22" through "Genesis 2:25", and "Romans 1:1" through "Romans 1:10". The space after the comma is used to denote a different book.
-
-===== Multiple Versions
-
-[source,asciidoc]
-----
-[[book::bible | gen 2:4-9, song-of-solomon 1:1-10 | kjv niv]]
-----
-
-This example would return:
-
-* the sections "Genesis 2:4" through "Genesis 2:9", of the King James Version of the Bible.
-* the sections "Song of Solomon 1:1" through "Song of Solomon 1:10", of the King James Version of the Bible.
-* the sections "Genesis 2:4" through "Genesis 2:9", of the New International Version of the Bible.
-* the sections "Song of Solomon 1:1" through "Song of Solomon 1:10", of the New International Version of the Bible.
-
-This example demonstrates the usage of different book name formats in one link, with the shortform "gen" (normalized from "Genesis") and the normalized longform "song-of-solomon" (from "Song of Solomon") being used interchangeably.
+|`book::bible \| gen 2:4-9, song-of-solomon 1:1-10 \| kjv niv`
+|Multiple books, multiple versions
+|===
 
 == Considerations
 
 === Version Handling
 
-When no version is specified in the link, the client MAY:
+When no version is specified, clients MAY: determine a default (e.g., "KJV"), display all versions found, or display the first version returned.
 
-* determine which version to use (e.g. "KJV", as default, or according to web-of-trust settings, or etc.)
-* display all versions found on the relays (e.g. "KJV", "NIV", "ESV", etc.)
-* display the first version returned by the relays.
+If a specified version is not found, clients MAY: display an error or fall back to another available version.
 
-If a version is specified, but not returned by the relays, the client MAY:
+=== Normalization
 
-* display an error message to the user.
-* display a different version returned by the relays.
+Clients MUST normalize link fields before parsing and searching. Normalize according to NIP-54: remove quotes, convert non-alphanumeric characters (except hyphens) to hyphens, lowercase all text. Versions separated by commas (e.g., `| kjv, niv`) should have commas normalized to spaces.
 
-=== Handling of wrongly-entered links
-
-Make sure to normalize the link fields prior to parsing and searching for the events. During normalization, quotes and other non-alphanumeric characters (except hyphens after normalization) SHOULD be removed or converted according to NIP-54 normalization rules. Versions separated by commas (like `| kjv, niv`) should have the commas removed during normalization.
-
-For example:
-
-Both of the following examples:
+Examples:
 
 [source,asciidoc]
 ----
-[[book:: bible | Song of Solomon 1:1-10 | KJV]]
+[[book:: "Song of Solomon" 1:1-10 | KJV]]
+[[book:: Song of Solomon 1:1-10 | KJV]]
 ----
+
+both normalize to:
 
 [source,asciidoc]
 ----
-[[book:: bible | "Song of Solomon" 1:1-10 | KJV]]
-----
-
-would be normalized to:
-
-[source,asciidoc]
-----
-[[book::bible | song-of-solomon 1:1-10 | kjv]]
+[[book::song-of-solomon 1:1-10 | kjv]]
 ----
 
 === Format Interpretation
 
-The goal of the link is human-writeability, so the client should be proactive and helpful in interpreting what the user meant.
+Clients SHOULD be proactive in interpreting user intent:
 
-The client SHOULD recognize and render Bible books without hyphens or quotations. A number preceding letters is concatenated to a title. Anything that is ` number:number-number` can be assumed to be `chapter:versebeginning-verseending`.
+* Recognize common keywords: "preface", "appendix", "introduction", "conclusion", "table of contents"
+* Handle plural/singular forms: "Psalm"/"Psalms", "Chapter"/"Chapters"
+* Support abbreviations: "Ch", "Ch.", "Chapter", "Intro", "Introduction"
+* Recognize Roman numerals for chapters
+* Concatenate numbers preceding titles
+* Recognize patterns: `number:number-number` as `chapter:verse-range`
 
-There are typical keywords like "preface" or "appendix", that SHOULD be identified. You SHOULD also work with plural or singular, such as "Psalm" and "Psalms", preceding "the" or other articles, and different forms of common terms, such as "Ch" "Ch." "Chapter", or "Introduction" "Intro" "Introductions", and Roman numerals for chapters. Etc.
-
-The wikilinks:
-
-[source,asciidoc]
-----
-[[book:: "Jane Eyre"]]
-[[book:: 'Jane Eyre']]
-[[book:: Jane_Eyre]]
-[[book:: jane eyre]]
-----
-
-are all obviously `book::jane-eyre`.
-
-The wikilinks:
+All of these:
 
 [source,asciidoc]
 ----
 [[book:: "The Republic"]]
+[[book:: the_republic]]
+[[book:: the-republic]]
+[[book:: The Republic]]
 [[book:: 'The Republic']]
-[[book:: The_Republic]]
-[[book:: the republic]]
 ----
 
-are all obviously `book::the-republic`.
-
-It is also helpful for human-readable display to render the wikilinks in a pleasant manner or following citation conventions. For example, the following would be rendered as:
+normalize to the same result:
 
 [source,asciidoc]
 ----
-[[book::jane-eyre chapter-1]]
+[[book::the-republic]]
 ----
 
-* Ch. 1 of "Jane Eyre"
-* (Jane Eyre, Chapter 1)
-* "Jane Eyre", Chapter 1
+Clients MAY render wikilinks in human-readable formats following citation conventions (e.g., "Ch. 1 of 'Jane Eyre'", "Genesis 2:4-9 (KJV)").
 
-[source,asciidoc]
-----
-[[book::jane-eyre chapter-1:section-1-3]]
-----
-
-* Ch. 1, Secs. 1-3 of "Jane Eyre"
-* (Jane Eyre, Chapter 1, Sections 1-3)
-* "Jane Eyre", Chapter 1, Sections 1-3
-
-[source,asciidoc]
-----
-[[book::great-works-of-english-literature | jane-eyre chapter-1:section-1-3 | penguin-classics]]
-----
-
-* Ch. 1, Secs. 1-3 of "Jane Eyre", from the Penguin Classics edition
-* (Jane Eyre, Chapter 1, Sections 1-3, Penguin Classics)
-* "Jane Eyre", Chapter 1, Sections 1-3, Penguin Classics
-
-[source,asciidoc]
-----
-[[book::bible | genesis 2:4-9 | kjv]]
-----
-
-* Verses 4-9 of "Genesis 2", from the King James Version of the Bible
-* (Genesis 2, Verses 4-9, King James Version)
-* "Genesis 2", Verses 4-9, King James Version
-* Genesis 2:4-9 (KJV) -- a biblical citation format
-
-==== Complex Examples
-
-These examples demonstrate how the wikilink format can handle complex philosophical and theological works with sophisticated organizational structures.
-
-===== Plato, "The Republic"
-
-"The Republic" by Plato is typically organized into books (numbered 1-10) and further subdivided into sections and paragraphs. The work may be part of a collection like "platonic-dialogues" or "plato-complete-works".
-
-[source,asciidoc]
-----
-[[book::the-republic 5]]
-----
-
-This would return all of Book 5 of "The Republic". The client searches for a 30040 event with:
-
-[source,json]
-----
-[
-    ["T", "the-republic"],
-    ["c", "5"]
-]
-----
-
-[source,asciidoc]
-----
-[[book::the-republic 5:473]]
-----
-
-This references the famous passage about philosopher-kings (Book 5, section 473). The client searches for a 30041 event with:
-
-[source,json]
-----
-[
-    ["T", "the-republic"],
-    ["c", "5"],
-    ["s", "473"]
-]
-----
-
-[source,asciidoc]
-----
-[[book::platonic-dialogues | the-republic 7:514-521]]
-----
-
-This references the Allegory of the Cave (Book 7, sections 514-521) from a collection of Platonic dialogues. The client parses the range `7:514-521` and expands it to individual section identifiers. The client searches for 30041 events with:
-
-[source,json]
-----
-[
-    ["C", "platonic-dialogues"],
-    ["T", "the-republic"],
-    ["c", "7"],
-    ["s", "514"],
-    ["s", "515"],
-    ["s", "516"],
-    ["s", "517"],
-    ["s", "518"],
-    ["s", "519"],
-    ["s", "520"],
-    ["s", "521"]
-]
-----
-
-[source,asciidoc]
-----
-[[book::the-republic 2:358-362, 10:608-612 | bloom-translation]]
-----
-
-This references sections from two different Books within "The Republic" (Plato's work is divided into 10 Books). Specifically, it references the Ring of Gyges story from Book 2 (sections 358-362) and the discussion of the rewards of justice from Book 10 (sections 608-612), both from the Allan Bloom translation. The client parses the ranges and expands them to individual section identifiers, then searches for 30041 events:
-
-First range (Ring of Gyges story from Book 2):
-
-[source,json]
-----
-[
-    ["T", "the-republic"],
-    ["c", "2"],
-    ["s", "358"],
-    ["s", "359"],
-    ["s", "360"],
-    ["s", "361"],
-    ["s", "362"],
-    ["v", "bloom-translation"]
-]
-----
-
-Second range (rewards of justice discussion from Book 10):
-
-[source,json]
-----
-[
-    ["T", "the-republic"],
-    ["c", "10"],
-    ["s", "608"],
-    ["s", "609"],
-    ["s", "610"],
-    ["s", "611"],
-    ["s", "612"],
-    ["v", "bloom-translation"]
-]
-----
-
-Note: Publishers MAY store these sections as individual events (one event per section) OR as range events (one event covering multiple sections with `s` tag value like "358-362"). Clients search for individual section tags regardless of how publishers structure their events, and deduplicate results.
-
-===== "The Summa Theologica"
-
-Thomas Aquinas's "Summa Theologica" has a complex hierarchical structure: Parts → Questions → Articles → Objections/Replies. This can be mapped to the wikilink structure in various ways.
-
-[source,asciidoc]
-----
-[[book::summa-theologica part-1]]
-----
-
-This returns all of Part I (Prima Pars). The client searches for a 30040 event with:
-
-[source,json]
-----
-[
-    ["T", "summa-theologica"],
-    ["c", "part-1"]
-]
-----
-
-Note: The chapter field value may be normalized to "part-1" or "1" depending on implementation.
-
-[source,asciidoc]
-----
-[[book::summa-theologica part-1:question-2]]
-----
-
-This returns Question 2 from Part I ("The Existence of God"). The client searches for a 30040 event with:
-
-[source,json]
-----
-[
-    ["T", "summa-theologica"],
-    ["c", "part-1"],
-    ["s", "question-2"]
-]
-----
-
-Note: In this example, "part-1" is the chapter (c) and "question-2" is the section (s), representing a nested 30040 structure where the Question is stored as a subchapter within the Part.
-
-Alternatively, if Questions are stored as chapters:
-
-[source,asciidoc]
-----
-[[book::summa-theologica 1-2]]
-----
-
-This would return Part I, Question 2.
-
-[source,json]
-----
-[
-    ["T", "summa-theologica"],
-    ["c", "1-2"]
-]
-----
-
-[source,asciidoc]
-----
-[[book::summa-theologica part-1:question-2:article-3]]
-----
-
-This references Part I, Question 2, Article 3 ("Whether God exists"). The client searches for a 30041 event with:
-
-[source,json]
-----
-[
-    ["T", "summa-theologica"],
-    ["c", "part-1"],
-    ["s", "question-2-article-3"]
-]
-----
-
-[source,asciidoc]
-----
-[[book::summa-theologica part-1:question-13:article-1 | fathers-of-the-church]]
-----
-
-This references Part I, Question 13, Article 1 ("Whether any name can be given to God substantially") from the Fathers of the Church edition. The client searches for a 30041 event with:
-
-[source,json]
-----
-[
-    ["T", "summa-theologica"],
-    ["c", "part-1"],
-    ["s", "question-13-article-1"],
-    ["v", "fathers-of-the-church"]
-]
-----
-
-Note: The section field stores nested hierarchical structures using hyphens to separate levels (e.g., "question-13-article-1" rather than "question-13:article-1"). All tag values MUST contain only lowercase ASCII letters, numbers, and hyphens.
+==== Hierarchical Structures
 
-Note: Implementers may choose different normalization strategies. The chapter field could represent Parts (1, 2, 3) and sections could represent Questions, or Questions could be chapters with Articles as sections, depending on how the content is structured in the Nostr events.
+.Hierarchical Structure Examples
+[cols="2,4"]
+|===
+|Wikilink |Search Tags
 
-===== "The Catholic Catechism"
+|`book::the-republic 5`
+|`[["T", "the-republic"], ["c", "5"]]`
 
-"The Catechism of the Catholic Church" (1992) is organized into four parts, each divided into sections, subsections, and numbered paragraphs.
+|`book::the-republic 5:473`
+|`[["T", "the-republic"], ["c", "5"], ["s", "473"]]`
 
-[source,asciidoc]
-----
-[[book::catechism-of-the-catholic-church part-1]]
-----
-
-This returns all of Part One ("The Profession of Faith"). The client searches for a 30040 event with:
-
-[source,json]
-----
-[
-    ["T", "catechism-of-the-catholic-church"],
-    ["c", "part-1"]
-]
-----
-
-[source,asciidoc]
-----
-[[book::catechism-of-the-catholic-church part-1:section-2]]
-----
-
-This returns Section Two of Part One ("I Believe in Jesus Christ, the Only Son of God"). The client searches for a 30040 event with:
-
-[source,json]
-----
-[
-    ["T", "catechism-of-the-catholic-church"],
-    ["c", "part-1"],
-    ["s", "section-2"]
-]
-----
-
-Note: In this example, "part-1" is the chapter (c) and "section-2" is the section (s), where the Section is stored as a subchapter within the Part.
-
-[source,asciidoc]
-----
-[[book::catechism-of-the-catholic-church part-1:section-2:article-3:422]]
-----
-
-This references paragraph 422 from Part One, Section Two, Article Three ("Conceived by the Power of the Holy Spirit and Born of the Virgin Mary"). The client searches for a 30041 event with:
-
-[source,json]
-----
-[
-    ["T", "catechism-of-the-catholic-church"],
-    ["c", "part-1"],
-    ["s", "section-2-article-3-422"]
-]
-----
-
-Note: The section field "section-2-article-3-422" encodes the full hierarchical path (Section-Article-Paragraph) as a single section identifier using hyphens to separate levels.
-
-[source,asciidoc]
-----
-[[book::catechism-of-the-catholic-church part-3:section-2:1846-1849]]
-----
+|`book::platonic-dialogues | the-republic 7:514-521`
+|`[["C", "platonic-dialogues"], ["T", "the-republic"], ["c", "7"], ["s", "514"], ... ["s", "521"]]`
 
-This references paragraphs 1846-1849 from Part Three, Section Two (on the Sacrament of Penance and Reconciliation). The client parses the hierarchical section path `part-3:section-2:1846-1849`, where "part-3" is the chapter, and the range `1846-1849` is expanded to individual paragraph identifiers. The client searches for 30041 events with:
+|`book::the-republic 2:358-362, 10:608-612 | bloom-translation`
+|Multiple chapters with expanded ranges
 
-[source,json]
-----
-[
-    ["T", "catechism-of-the-catholic-church"],
-    ["c", "part-3"],
-    ["s", "section-2-1846"],
-    ["s", "section-2-1847"],
-    ["s", "section-2-1848"],
-    ["s", "section-2-1849"]
-]
-----
+|`book::summa-theologica part-1`
+|`[["T", "summa-theologica"], ["c", "part-1"]]`
 
-Note: In this hierarchical structure, the full path `section-2:1846-1849` is normalized to section identifiers where colons are replaced with hyphens, and the range is expanded to individual identifiers.
+|`book::summa-theologica part-1:question-2`
+|`[["T", "summa-theologica"], ["c", "part-1"], ["s", "question-2"]]`
 
-[source,asciidoc]
-----
-[[book::catechism-of-the-catholic-church part-4:section-1:2676-2682 | second-edition-1997]]
-----
+|`book::summa-theologica part-1:question-2:article-3`
+|`[["T", "summa-theologica"], ["c", "part-1"], ["s", "question-2-article-3"]]`
 
-This references paragraphs 2676-2682 from Part Four, Section One (on Christian Prayer) from the second edition. The client parses the hierarchical section path `part-4:section-1:2676-2682`, where "part-4" is the chapter, and the range `2676-2682` is expanded to individual paragraph identifiers, then searches for:
+|`book::catechism-of-the-catholic-church part-1:section-2:article-3:422`
+|`[["T", "catechism-of-the-catholic-church"], ["c", "part-1"], ["s", "section-2-article-3-422"]]`
 
-[source,json]
-----
-[
-    ["T", "catechism-of-the-catholic-church"],
-    ["c", "part-4"],
-    ["s", "section-1-2676"],
-    ["s", "section-1-2677"],
-    ["s", "section-1-2678"],
-    ["s", "section-1-2679"],
-    ["s", "section-1-2680"],
-    ["s", "section-1-2681"],
-    ["s", "section-1-2682"],
-    ["v", "second-edition-1997"]
-]
-----
+|`book::catechism-of-the-catholic-church part-3:section-2:1846-1849`
+|`[["T", "catechism-of-the-catholic-church"], ["c", "part-3"], ["s", "section-2-1846"], ... ["s", "section-2-1849"]]`
+|===
 
-These complex examples demonstrate the flexibility of the wikilink format in handling various organizational structures. Implementers should ensure consistent normalization and mapping strategies when structuring content in Nostr events.
+Note: Hierarchical paths with colons (e.g., `section-2:1846-1849`) are normalized: colons → hyphens, ranges expanded. Implementers may map hierarchical structures differently (Parts→Questions→Articles vs Questions→Articles→Objections).
 
 == Technical Specification
 
@@ -769,60 +296,14 @@ WS : [\t\r\n]+ -> skip;
 
 Notes:
 
-* This is ANTLR4 syntax. Parser rules (lowercase) define the grammar structure; lexer rules (uppercase) define tokens.
-* Lexer rule order matters: `COMMA_SPACE` must appear before `COMMA` so it matches first when a comma is followed by spaces.
-* `COMMA_SPACE` (comma + space) indicates a new book reference; `COMMA` (comma alone) continues sections within the same book.
-* `SPACE` token is explicitly used where spaces are required in the structure (after collection pipe, between title and chapter, in version lists).
-* `IDENTIFIER` matches sequences of letters, numbers, hyphens, and underscores. These will be normalized to lowercase with hyphens only when stored as tag values.
-* `WS` skips tabs and newlines but not spaces (spaces are handled explicitly via `SPACE` token).
-* In practice, commas may appear in user input for version lists but should be normalized to spaces during preprocessing.
-* Section ranges (e.g., `4-9`) are parsed as `section_name_or_number HYPHEN section_name_or_number` in the grammar. The parser extracts the range and expands it to individual section identifiers during post-processing.
-* Hierarchical section paths with colons (e.g., `section-2:1846-1849`) are parsed using the `section_path` rule, which allows colons and hyphens within the section part. The colons within the section part are normalized to hyphens during post-processing, and ranges are expanded.
-
-[source,asciidoc]
-----
-[[book::torah | exodus 1:10 | jps klt]]
-----
-
-is a valid book wikilink with multiple versions specified. The client would search for events matching any of the specified versions:
-
-[source,json]
-----
-[
-    ["C", "torah"],
-    ["T", "exodus"],
-    ["c", "1"],
-    ["s", "10"],
-    ["v", "jps"],
-    ["v", "klt"]
-]
-----
-
-This event includes both version tags and would match the search. The client could also find events with only one version:
-
-[source,json]
-----
-[
-    ["C", "torah"],
-    ["T", "exodus"],
-    ["c", "1"],
-    ["s", "10"],
-    ["v", "jps"]
-]
-----
-
-[source,json]
-----
-[
-    ["C", "torah"],
-    ["T", "exodus"],
-    ["c", "1"],
-    ["s", "10"],
-    ["v", "klt"]
-]
-----
-
-Note: Multiple versions are represented as multiple 'v' tags, one for each version value. When multiple versions are specified in a wikilink (like "jps klt"), the client searches for events with matching 'v' tags for any of those versions. This example shows both "jps" (Jewish Publication Society) and "klt" (Kaplan Literary Translation) as separate version tags that could appear in the same event or in separate events.
+* ANTLR4 syntax: parser rules (lowercase) define structure; lexer rules (uppercase) define tokens
+* Lexer order matters: `COMMA_SPACE` must precede `COMMA`
+* `COMMA_SPACE` (comma + space) = new book reference; `COMMA` alone = same book
+* `SPACE` required after collection pipe, between title/chapter, in version lists
+* `IDENTIFIER` matches letters, numbers, hyphens, underscores (normalized to lowercase+hyphens for tags)
+* `WS` skips tabs/newlines but not spaces
+* Section ranges (`4-9`) parsed as `section_name_or_number HYPHEN section_name_or_number`, expanded during post-processing
+* Hierarchical paths with colons parsed via `section_path` rule; colons normalized to hyphens, ranges expanded during post-processing
 
 
 === Test Data
