@@ -42,7 +42,7 @@ If the `section` field is omitted, assume all `30041` sections are included, alo
 
 Within the 30040 and 30041 events, the following indexable tags MUST be used to store the metadata required for the link to be resolved, in addition to the tags required by [[NKBIP-01]], such as the `d` tag. The NKBIP-08 tags, and their corresponding link fields, are defined in the following table (first column).
 
-IMPORTANT: Tag values MUST contain only lowercase ASCII letters, numbers, and hyphens. No spaces, uppercase letters, colons, semicolons, commas, or non-ASCII characters are allowed in tag values. Capitalized letters, spaces, and other special characters in the human-readable wikilink format are normalized to hyphens when stored as tag values.
+IMPORTANT: Tag values MUST contain only lowercase ASCII letters, numbers, and hyphens. No spaces, uppercase letters, colons, semicolons, commas, or non-ASCII characters are allowed in tag values. In the human-readable wikilink format, capitalized letters are converted to lowercase, and any non-letter character (spaces, colons, etc.) is normalized to hyphens when stored as tag values. Numbers are preserved as-is.
 
 .Tag and Wikilink Segment Mapping
 [cols="1,2,2,3,3"]
@@ -166,7 +166,7 @@ If a specified version is not found, clients MAY: display an error or fall back 
 
 === Normalization
 
-Clients MUST normalize link fields before parsing and searching. Normalize according to NIP-54: remove quotes, convert non-alphanumeric characters (except hyphens) to hyphens, lowercase all text. Versions separated by commas (e.g., `| kjv, niv`) should have commas normalized to spaces.
+Clients MUST normalize link fields before parsing and searching. Normalize according to NIP-54: remove quotes, convert any non-letter character to a hyphen, convert all letters to lowercase. Numbers are preserved (they are not converted to hyphens). Versions separated by commas (e.g., `| kjv, niv`) should have commas normalized to spaces.
 
 Examples:
 
@@ -278,7 +278,7 @@ chapter_name_or_number : IDENTIFIER | NUMBER;
 section_name_or_number : IDENTIFIER | NUMBER;
 
 // Lexer rules (order matters - more specific patterns must come first)
-BOOK_START : '[[' 'book' COLON COLON;
+BOOK_START : '[[book::';
 BOOK_END : ']]';
 COMMA_SPACE : ', '+;  // Comma followed by one or more spaces (indicates new book reference)
 PIPE : '|';
@@ -300,10 +300,11 @@ Notes:
 * Lexer order matters: `COMMA_SPACE` must precede `COMMA`
 * `COMMA_SPACE` (comma + space) = new book reference; `COMMA` alone = same book
 * `SPACE` required after collection pipe, between title/chapter, in version lists
-* `IDENTIFIER` matches letters, numbers, hyphens, underscores (normalized to lowercase+hyphens for tags)
+* `IDENTIFIER` matches letters, numbers, hyphens, underscores. Note: The grammar expects normalized input (spaces converted to hyphens, lowercase). For parsing unnormalized input (with spaces, mixed case), clients MUST normalize according to NIP-54 rules (non-letter characters → hyphens, letters → lowercase) before applying this grammar, OR implement a preprocessing step that handles spaces and keyword recognition (e.g., "chapter 5" → "chapter-5").
 * `WS` skips tabs/newlines but not spaces
 * Section ranges (`4-9`) parsed as `section_name_or_number HYPHEN section_name_or_number`, expanded during post-processing
 * Hierarchical paths with colons parsed via `section_path` rule; colons normalized to hyphens, ranges expanded during post-processing
+* Keyword recognition (e.g., "chapter", "preface", "introduction") and number concatenation (e.g., "42 quzplink" → "42-quzplink") are semantic interpretation steps that occur before or during normalization, not part of the grammar itself
 
 
 === Test Data
@@ -674,4 +675,12 @@ tests:
       tags: [["T", "catechism-of-the-catholic-church"], ["c", "part-4"], ["s", "section-1-2676"], ["s", "section-1-2677"], ["s", "section-1-2678"], ["s", "section-1-2679"], ["s", "section-1-2680"], ["s", "section-1-2681"], ["s", "section-1-2682"], ["v", "second-edition-1997"]]
 ----
 
-Note: These test cases focus on validating the parser's ability to correctly identify and extract structural elements (collections, titles, chapters, sections, versions) and handle normalization. The actual tag values shown are the normalized forms that would be stored in Nostr events. Implementations should normalize input according to NIP-54 rules before storing as tag values. Section ranges are expanded during post-processing after parsing, and hierarchical paths with colons are normalized (colons → hyphens) during post-processing.
+Note: These test cases focus on validating the parser's ability to correctly identify and extract structural elements (collections, titles, chapters, sections, versions) and handle normalization. The test inputs shown are in unnormalized form (may contain spaces, mixed case, quotes). The actual tag values shown are the normalized forms that would be stored in Nostr events. 
+
+Implementations MUST:
+1. Apply semantic interpretation (keyword recognition, number concatenation, Roman numeral handling) to the input
+2. Normalize input according to NIP-54 rules (non-letter characters → hyphens, letters → lowercase, numbers preserved) before parsing OR as part of a preprocessing step that handles the ANTLR grammar
+3. Expand section ranges during post-processing after parsing
+4. Normalize hierarchical paths with colons (colons → hyphens) during post-processing
+
+The ANTLR grammar expects normalized input. For test cases with spaces or mixed case, a preprocessing normalization step must be applied before the grammar can parse them correctly.
